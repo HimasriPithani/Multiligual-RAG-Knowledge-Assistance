@@ -50,9 +50,13 @@ def test_chat_returns_grounded_answer_with_sources(mock_retrieve, mock_generate)
 def test_health_endpoint_returns_status():
     with patch("app.api.health.chroma.health_check", return_value=True), patch(
         "app.api.health.metadata.health_check", new_callable=AsyncMock, return_value=True
-    ), patch("app.api.health.get_embedding_model", return_value=object()):
+    ), patch("app.api.health.get_embedding_model", return_value=object()), patch(
+        "app.api.health.check_ollama", return_value=(True, True)
+    ):
         response = client.get("/health")
 
     assert response.status_code == 200
     body = response.json()
     assert body["status"] == "healthy"
+    assert body["ollama_connected"] is True
+    assert body["ollama_model_available"] is True

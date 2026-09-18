@@ -17,7 +17,7 @@ class Settings(BaseSettings):
 
     # Local LLM - Ollama
     ollama_base_url: str = "http://localhost:11434"
-    ollama_model: str = "qwen3:8b"
+    ollama_model: str = "qwen2.5:3b-instruct"  # or qwen3:4b, but qwen2.5 is faster and cheaper
 
     # MongoDB
     mongodb_uri: str = "mongodb://localhost:27017"

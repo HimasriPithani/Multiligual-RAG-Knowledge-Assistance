@@ -1,11 +1,3 @@
-"""
-Generates the final answer using a local Ollama LLM.
-
-The RAG pipeline passes a grounded prompt containing the retrieved
-document chunks. Ollama runs locally on the user's machine, so no
-external LLM API key is required.
-"""
-
 import logging
 
 import httpx
@@ -16,13 +8,32 @@ logger = logging.getLogger(__name__)
 
 
 class LLMServiceError(Exception):
-    """Raised when the local LLM cannot generate an answer."""
-
     pass
 
 
+def check_ollama() -> bool:
+    """Check whether Ollama is running and the configured model is available."""
+    try:
+        url = f"{settings.ollama_base_url.rstrip('/')}/api/tags"
+
+        response = httpx.get(url, timeout=10.0)
+        response.raise_for_status()
+
+        data = response.json()
+        models = data.get("models", [])
+
+        return any(
+            model.get("name") == settings.ollama_model
+            for model in models
+        )
+
+    except Exception as exc:
+        logger.warning("Ollama health check failed: %s", exc)
+        return False
+
+
 def generate_answer(prompt: str) -> str:
-    """Generate an answer using the configured Ollama model."""
+    """Generate an answer using the local Ollama model."""
 
     url = f"{settings.ollama_base_url.rstrip('/')}/api/chat"
 
@@ -35,12 +46,11 @@ def generate_answer(prompt: str) -> str:
             }
         ],
         "stream": False,
-        "think": False,
-        "keep_alive": "10m",
         "options": {
-            "temperature": 0.2,
-            "num_predict": 512,
+            "temperature": 0.1,
+            "num_predict": 256,
         },
+        "keep_alive": "10m",
     }
 
     try:
@@ -67,14 +77,14 @@ def generate_answer(prompt: str) -> str:
     except httpx.TimeoutException as exc:
         logger.exception("Ollama request timed out")
         raise LLMServiceError(
-            "The local AI model took too long to respond. Please try again."
+            "The local AI model took too long to respond."
         ) from exc
 
     except httpx.HTTPStatusError as exc:
         logger.exception("Ollama returned an HTTP error")
         raise LLMServiceError(
-            "The local AI service returned an error. "
-            "Make sure Ollama is running and the model is available."
+            "Ollama returned an error. Please check that the model "
+            "is installed and Ollama is running."
         ) from exc
 
     except LLMServiceError:
@@ -83,6 +93,5 @@ def generate_answer(prompt: str) -> str:
     except Exception as exc:
         logger.exception("Ollama generation failed")
         raise LLMServiceError(
-            "The local AI service is temporarily unavailable. "
-            "Please make sure Ollama is running."
+            "The local AI service is temporarily unavailable."
         ) from exc

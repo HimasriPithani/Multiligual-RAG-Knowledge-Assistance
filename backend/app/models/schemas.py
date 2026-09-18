@@ -53,3 +53,5 @@ class HealthResponse(BaseModel):
     embedding_model_loaded: bool
     vector_db_connected: bool
     metadata_db_connected: bool
+    ollama_connected: bool
+    ollama_model_available: bool
