@@ -32,9 +32,10 @@ def get_collection():
     return db["documents"]
 
 
-async def create_document(document_id: str, filename: str) -> DocumentMetadata:
+async def create_document(document_id: str, filename: str,user_id: str,) -> DocumentMetadata:
     doc = DocumentMetadata(
         document_id=document_id,
+        user_id=user_id,
         filename=filename,
         uploaded_at=datetime.now(timezone.utc),
         status="processing",
@@ -61,17 +62,45 @@ async def mark_failed(document_id: str, error_message: str) -> None:
     )
 
 
-async def get_document(document_id: str) -> Optional[DocumentMetadata]:
+async def get_document(
+    document_id: str,
+) -> Optional[DocumentMetadata]:
     collection = get_collection()
-    raw = await collection.find_one({"document_id": document_id}, {"_id": 0})
+
+    raw = await collection.find_one(
+        {"document_id": document_id},
+        {"_id": 0},
+    )
+
     return DocumentMetadata(**raw) if raw else None
 
-
-async def list_documents() -> List[DocumentMetadata]:
+async def list_documents(
+    user_id: str,
+) -> List[DocumentMetadata]:
     collection = get_collection()
-    cursor = collection.find({}, {"_id": 0}).sort("uploaded_at", -1)
-    return [DocumentMetadata(**raw) async for raw in cursor]
 
+    cursor = collection.find(
+        {"user_id": user_id},
+        {"_id": 0},
+    ).sort(
+        "uploaded_at",
+        -1,
+    )
+
+    documents = []
+
+    async for raw in cursor:
+        raw.setdefault("user_id", user_id)
+        raw.setdefault("language", None)
+        raw.setdefault("chunk_count", 0)
+        raw.setdefault("status", "processing")
+        raw.setdefault("error_message", None)
+
+        documents.append(
+            DocumentMetadata(**raw)
+        )
+
+    return documents
 
 async def delete_document(document_id: str) -> bool:
     collection = get_collection()

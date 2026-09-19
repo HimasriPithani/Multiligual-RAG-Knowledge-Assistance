@@ -14,6 +14,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api import chat, documents, health
+from app.api.auth import router as auth_router
 
 logging.basicConfig(level=logging.INFO)
 
@@ -27,8 +28,7 @@ app = FastAPI(
     version="1.0.0",
 )
 
-# Allows a React frontend (running on a different port during development)
-# to call this API directly from the browser.
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],  # tighten this to your frontend's actual domain in production
@@ -40,6 +40,7 @@ app.add_middleware(
 app.include_router(health.router)
 app.include_router(documents.router)
 app.include_router(chat.router)
+app.include_router(auth_router)
 
 
 @app.get("/")

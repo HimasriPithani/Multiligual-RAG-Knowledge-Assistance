@@ -1,20 +1,12 @@
-"""
-Document ingestion pipeline, exposed as REST endpoints:
-
-  POST   /documents/upload   -> extract, chunk, embed, store
-  GET    /documents          -> list uploaded documents + status
-  DELETE /documents/{id}     -> remove a document and its chunks
-"""
-
 import logging
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, File, HTTPException, UploadFile
+from fastapi import APIRouter,Depends, File, HTTPException, UploadFile
 
 from app.config import settings
 from app.database import chroma, metadata
-from app.models.schemas import DocumentListResponse, DocumentUploadResponse
+from app.models.schemas import DocumentListResponse, DocumentUploadResponse,  DocumentDetailResponse
 from app.multilingual.language_detection import detect_language
 from app.rag.chunker import chunk_document
 from app.rag.document_loader import (
@@ -22,6 +14,7 @@ from app.rag.document_loader import (
     UnsupportedFileTypeError,
     extract_text,
 )
+from app.core.security import get_current_user_id
 from app.rag.embeddings import embed_texts
 
 logger = logging.getLogger(__name__)
@@ -32,7 +25,7 @@ UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @router.post("/upload", response_model=DocumentUploadResponse)
-async def upload_document(file: UploadFile = File(...)):
+async def upload_document(file: UploadFile = File(...),current_user_id: str = Depends(get_current_user_id),):
     # --- Validate file type up front ---
     ext = Path(file.filename).suffix.lower()
     if ext not in {".pdf", ".txt", ".docx"}:
@@ -54,7 +47,11 @@ async def upload_document(file: UploadFile = File(...)):
     saved_path = UPLOAD_DIR / f"{document_id}{ext}"
     saved_path.write_bytes(contents)
 
-    await metadata.create_document(document_id=document_id, filename=file.filename)
+    await metadata.create_document(
+        document_id=document_id,
+        filename=file.filename,
+        user_id=current_user_id,
+    )
 
     try:
         # 1. Extract text
@@ -117,13 +114,44 @@ async def upload_document(file: UploadFile = File(...)):
 
 
 @router.get("", response_model=DocumentListResponse)
-async def list_documents():
-    docs = await metadata.list_documents()
-    return DocumentListResponse(documents=docs)
+async def list_documents(
+    current_user_id: str = Depends(get_current_user_id),
+):
+    docs = await metadata.list_documents(
+        user_id=current_user_id
+    )
 
+    return DocumentListResponse(
+        documents=docs,
+        total=len(docs),
+    )
+
+@router.get(
+    "/{document_id}",
+    response_model=DocumentDetailResponse,
+)
+async def get_document_details(
+    document_id: str,
+    current_user_id: str = Depends(get_current_user_id),
+):
+    document = await metadata.get_document(document_id)
+
+    if not document:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    if document.user_id != current_user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to access this document.",
+        )
+
+    return DocumentDetailResponse(document=document)
 
 @router.delete("/{document_id}")
-async def delete_document(document_id: str):
+async def delete_document(document_id: str, current_user_id: str = Depends(get_current_user_id),):
     doc = await metadata.get_document(document_id)
     if not doc:
         raise HTTPException(status_code=404, detail="Document not found.")
