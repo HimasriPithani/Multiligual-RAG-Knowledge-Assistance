@@ -6,7 +6,7 @@ from fastapi import APIRouter,Depends, File, HTTPException, UploadFile
 
 from app.config import settings
 from app.database import chroma, metadata
-from app.models.schemas import DocumentListResponse, DocumentUploadResponse,  DocumentDetailResponse
+from app.models.schemas import DocumentListResponse, DocumentUploadResponse,  DocumentDetailResponse, DocumentDeleteResponse
 from app.multilingual.language_detection import detect_language
 from app.rag.chunker import chunk_document
 from app.rag.document_loader import (
@@ -150,17 +150,37 @@ async def get_document_details(
 
     return DocumentDetailResponse(document=document)
 
-@router.delete("/{document_id}")
-async def delete_document(document_id: str, current_user_id: str = Depends(get_current_user_id),):
+@router.delete("/{document_id}", response_model=DocumentDeleteResponse)
+async def delete_document(
+    document_id: str,
+    current_user_id: str = Depends(get_current_user_id),
+):
     doc = await metadata.get_document(document_id)
-    if not doc:
-        raise HTTPException(status_code=404, detail="Document not found.")
 
+    if not doc:
+        raise HTTPException(
+            status_code=404,
+            detail="Document not found.",
+        )
+
+    # Make sure users can delete only their own documents
+    if doc.user_id != current_user_id:
+        raise HTTPException(
+            status_code=403,
+            detail="You do not have permission to delete this document.",
+        )
+
+    # Delete chunks from ChromaDB
     chroma.delete_document_chunks(document_id)
+
+    # Delete metadata record
     await metadata.delete_document(document_id)
 
-    # Best-effort cleanup of the stored file
+    # Delete uploaded file
     for f in UPLOAD_DIR.glob(f"{document_id}.*"):
         f.unlink(missing_ok=True)
 
-    return {"message": "Document deleted successfully.", "document_id": document_id}
+    return DocumentDeleteResponse(
+        document_id=document_id,
+        message="Document deleted successfully",
+    )

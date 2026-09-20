@@ -148,6 +148,10 @@ class ChatRequest(BaseModel):
 
     language: Optional[str] = None
 
+    session_id: Optional[str] = None
+    # Pass the session_id from a previous ChatResponse to continue that
+    # conversation. Omit it to start a new chat session.
+
 
 class SourceReference(BaseModel):
     document: str
@@ -172,6 +176,9 @@ class ChatResponse(BaseModel):
     sources: List[SourceReference]
 
     grounded: bool
+
+    session_id: str
+    # The chat session (new or continued) this exchange was saved under.
 
 
 # ============================================================
