@@ -1,4 +1,6 @@
+import json
 import logging
+from typing import AsyncGenerator
 
 import httpx
 
@@ -32,8 +34,13 @@ def check_ollama() -> bool:
         return False
 
 
-def generate_answer(prompt: str) -> str:
-    """Generate an answer using the local Ollama model."""
+async def generate_answer_stream(
+    prompt: str,
+) -> AsyncGenerator[str, None]:
+    """
+    Generate an answer from Ollama and stream the response
+    token-by-token to the caller.
+    """
 
     url = f"{settings.ollama_base_url.rstrip('/')}/api/chat"
 
@@ -45,43 +52,65 @@ def generate_answer(prompt: str) -> str:
                 "content": prompt,
             }
         ],
-        "stream": False,
+        "stream": True,
         "options": {
             "temperature": 0.1,
-            "num_predict": 256,
+            "num_predict": 180,
         },
-        "keep_alive": "10m",
+        "keep_alive": "30m",
     }
 
     try:
-        response = httpx.post(
-            url,
-            json=payload,
-            timeout=300.0,
-        )
-
-        response.raise_for_status()
-
-        data = response.json()
-
-        message = data.get("message", {})
-        answer = message.get("content", "").strip()
-
-        if not answer:
-            raise LLMServiceError(
-                "The local AI model returned an empty response."
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(
+                connect=10.0,
+                read=300.0,
+                write=30.0,
+                pool=30.0,
             )
+        ) as client:
 
-        return answer
+            async with client.stream(
+                "POST",
+                url,
+                json=payload,
+            ) as response:
+
+                response.raise_for_status()
+
+                async for line in response.aiter_lines():
+
+                    if not line:
+                        continue
+
+                    try:
+                        data = json.loads(line)
+                    except json.JSONDecodeError:
+                        logger.warning(
+                            "Could not decode Ollama stream line: %s",
+                            line,
+                        )
+                        continue
+
+                    message = data.get("message", {})
+                    content = message.get("content", "")
+
+                    if content:
+                        yield content
+
+                    if data.get("done") is True:
+                        break
 
     except httpx.TimeoutException as exc:
         logger.exception("Ollama request timed out")
+
         raise LLMServiceError(
             "The local AI model took too long to respond."
         ) from exc
 
     except httpx.HTTPStatusError as exc:
         logger.exception("Ollama returned an HTTP error")
+
         raise LLMServiceError(
             "Ollama returned an error. Please check that the model "
             "is installed and Ollama is running."
@@ -91,7 +120,8 @@ def generate_answer(prompt: str) -> str:
         raise
 
     except Exception as exc:
-        logger.exception("Ollama generation failed")
+        logger.exception("Ollama streaming failed")
+
         raise LLMServiceError(
             "The local AI service is temporarily unavailable."
         ) from exc

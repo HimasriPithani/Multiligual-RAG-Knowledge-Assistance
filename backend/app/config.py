@@ -35,7 +35,7 @@ class Settings(BaseSettings):
     # Chunking / retrieval
     chunk_size_words: int = 350
     chunk_overlap_words: int = 60
-    top_k: int = 5
+    top_k: int = 3
     similarity_threshold: float = 0.20
 
     # Uploads

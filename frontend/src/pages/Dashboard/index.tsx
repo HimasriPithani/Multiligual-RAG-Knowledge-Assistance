@@ -575,109 +575,273 @@ export default function Dashboard() {
   /* ---------- chat ---------- */
 
   const askQuestion = async (rawQuestion: string) => {
-    const trimmed = rawQuestion.trim();
+  const trimmed = rawQuestion.trim();
 
-    if (!trimmed || isAsking) return;
+  if (!trimmed || isAsking) return;
 
-    // Attachments finishing upload right now are excluded — the send
-    // button is disabled while anything is still "uploading", so by the
-    // time this runs every attachment is either ready or failed.
-    const newlyReady = attachments.filter(
-      (item) => item.status === "ready" && item.documentId
-    );
+  const newlyReady = attachments.filter(
+    (item) => item.status === "ready" && item.documentId
+  );
 
-    const combinedContext = [
-      ...sessionAttachments,
-      ...newlyReady.filter(
-        (item) =>
-          !sessionAttachments.some((existing) => existing.id === item.id)
-      ),
-    ];
+  const combinedContext = [
+    ...sessionAttachments,
+    ...newlyReady.filter(
+      (item) =>
+        !sessionAttachments.some(
+          (existing) => existing.id === item.id
+        )
+    ),
+  ];
 
-    const documentIds = combinedContext
-      .map((item) => item.documentId)
-      .filter((value): value is string => Boolean(value));
+  const documentIds = combinedContext
+    .map((item) => item.documentId)
+    .filter((value): value is string => Boolean(value));
+
+  // Add user's message immediately
+  setMessages((previous) => [
+    ...previous,
+    {
+      id: createId(),
+      role: "user",
+      content: trimmed,
+      attachments:
+        newlyReady.length > 0
+          ? newlyReady.map((item) => ({
+              id: item.id,
+              name: item.name,
+            }))
+          : undefined,
+    },
+  ]);
+
+  setSessionAttachments(combinedContext);
+
+  setAttachments((previous) =>
+    previous.filter((item) => item.status === "failed")
+  );
+
+  setQuestion("");
+  setIsAsking(true);
+
+  if (textareaRef.current) {
+    textareaRef.current.style.height = "auto";
+  }
+
+  try {
+    if (!localStorage.getItem("access_token")) {
+      throw new Error(
+        "Your session expired. Sign in again to ask questions."
+      );
+    }
+
+    const response = await fetch(`${API_BASE_URL}/chat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        ...authHeaders(),
+      },
+      body: JSON.stringify({
+        question: trimmed,
+        language: language === "auto" ? null : language,
+        document_ids:
+          documentIds.length > 0 ? documentIds : null,
+        session_id: sessionId,
+      }),
+    });
+
+    if (!response.ok) {
+      let errorMessage =
+        "That question could not be answered.";
+
+      try {
+        const errorData = await response.json();
+        errorMessage =
+          errorData.detail || errorMessage;
+      } catch {
+        // Response was not JSON.
+      }
+
+      throw new Error(errorMessage);
+    }
+
+    if (!response.body) {
+      throw new Error(
+        "The server did not return a streaming response."
+      );
+    }
+
+    // Create the assistant message immediately.
+    const assistantMessageId = createId();
 
     setMessages((previous) => [
       ...previous,
       {
-        id: createId(),
-        role: "user",
-        content: trimmed,
-        attachments:
-          newlyReady.length > 0
-            ? newlyReady.map((item) => ({ id: item.id, name: item.name }))
-            : undefined,
+        id: assistantMessageId,
+        role: "assistant",
+        content: "",
+        sources: [],
       },
     ]);
 
-    setSessionAttachments(combinedContext);
-    // Clear the composer of attachments that just got sent; keep any that
-    // are still failed so the person can see the error or remove them.
-    setAttachments((previous) => previous.filter((item) => item.status === "failed"));
+    const reader = response.body.getReader();
 
-    setQuestion("");
-    setIsAsking(true);
+    const decoder = new TextDecoder("utf-8");
 
-    if (textareaRef.current) {
-      textareaRef.current.style.height = "auto";
-    }
+    let buffer = "";
+    let assistantContent = "";
 
-    try {
-      if (!localStorage.getItem("access_token")) {
-        throw new Error("Your session expired. Sign in again to ask questions.");
+    while (true) {
+      const { value, done } = await reader.read();
+
+      if (done) {
+        break;
       }
 
-      const response = await fetch(`${API_BASE_URL}/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...authHeaders(),
-        },
-        body: JSON.stringify({
-          question: trimmed,
-          language: language === "auto" ? null : language,
-          document_ids: documentIds.length > 0 ? documentIds : null,
-          session_id: sessionId,
-        }),
+      buffer += decoder.decode(value, {
+        stream: true,
       });
 
-      const data = await response.json();
+      const lines = buffer.split("\n");
 
-      if (!response.ok) {
-        throw new Error(data.detail || "That question could not be answered.");
+      // Keep incomplete line for the next chunk.
+      buffer = lines.pop() || "";
+
+      for (const line of lines) {
+        if (!line.trim()) {
+          continue;
+        }
+
+        let event;
+
+        try {
+          event = JSON.parse(line);
+        } catch (error) {
+          console.warn(
+            "Could not parse streaming event:",
+            line
+          );
+          continue;
+        }
+
+        // -----------------------------------------
+        // Metadata
+        // -----------------------------------------
+
+        if (event.type === "meta") {
+          if (event.session_id) {
+            setSessionId(event.session_id);
+          }
+
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    sources: event.sources || [],
+                  }
+                : message
+            )
+          );
+        }
+
+        // -----------------------------------------
+        // New generated token
+        // -----------------------------------------
+
+        if (event.type === "token") {
+          const token = event.content || "";
+
+          assistantContent += token;
+
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: assistantContent,
+                  }
+                : message
+            )
+          );
+        }
+
+        // -----------------------------------------
+        // Server error
+        // -----------------------------------------
+
+        if (event.type === "error") {
+          throw new Error(
+            event.message ||
+              "The local AI service is temporarily unavailable."
+          );
+        }
+
+        // -----------------------------------------
+        // Generation completed
+        // -----------------------------------------
+
+        if (event.type === "done") {
+          break;
+        }
       }
-
-      if (data.session_id) {
-        setSessionId(data.session_id);
-      }
-
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: createId(),
-          role: "assistant",
-          content: data.answer || "No answer was returned for this question.",
-          sources: data.sources || [],
-        },
-      ]);
-    } catch (error) {
-      setMessages((previous) => [
-        ...previous,
-        {
-          id: createId(),
-          role: "assistant",
-          failed: true,
-          content:
-            error instanceof Error
-              ? error.message
-              : "That question could not be answered.",
-        },
-      ]);
-    } finally {
-      setIsAsking(false);
     }
-  };
+
+    // Process any final incomplete buffer.
+    if (buffer.trim()) {
+      try {
+        const event = JSON.parse(buffer);
+
+        if (event.type === "token") {
+          assistantContent += event.content || "";
+
+          setMessages((previous) =>
+            previous.map((message) =>
+              message.id === assistantMessageId
+                ? {
+                    ...message,
+                    content: assistantContent,
+                  }
+                : message
+            )
+          );
+        }
+
+        if (event.type === "meta") {
+          if (event.session_id) {
+            setSessionId(event.session_id);
+          }
+        }
+
+        if (event.type === "error") {
+          throw new Error(
+            event.message ||
+              "The local AI service is temporarily unavailable."
+          );
+        }
+      } catch (error) {
+        if (error instanceof Error) {
+          throw error;
+        }
+      }
+    }
+
+  } catch (error) {
+    setMessages((previous) => [
+      ...previous,
+      {
+        id: createId(),
+        role: "assistant",
+        failed: true,
+        content:
+          error instanceof Error
+            ? error.message
+            : "That question could not be answered.",
+      },
+    ]);
+  } finally {
+    setIsAsking(false);
+  }
+};
 
   const handleSubmit = (event: React.FormEvent) => {
     event.preventDefault();
@@ -1220,15 +1384,7 @@ export default function Dashboard() {
                   </article>
                 ))}
 
-                {isAsking && (
-                  <article className="chat-message assistant">
-                    <span className="chat-typing">
-                      <span />
-                      <span />
-                      <span />
-                    </span>
-                  </article>
-                )}
+                
 
                 <div ref={threadEndRef} />
               </section>

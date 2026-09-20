@@ -91,7 +91,7 @@ EMBEDDING_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 
 CHUNK_SIZE_WORDS=350
 CHUNK_OVERLAP_WORDS=60
-TOP_K=5
+TOP_K=3
 SIMILARITY_THRESHOLD=0.35
 
 UPLOAD_DIR=./data/uploads
