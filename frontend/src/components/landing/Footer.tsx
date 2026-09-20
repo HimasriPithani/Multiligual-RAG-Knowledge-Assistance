@@ -1,6 +1,10 @@
+
 import { ArrowUp, Mail } from "lucide-react";
 import { FaGithub, FaLinkedin } from "react-icons/fa";
 import Logo from "../common/Logo";
+
+import SashankImage from "../../assets/sashank.png";
+import HimasriImage from "../../assets/himasri.png";
 
 export default function Footer() {
   const scrollToTop = () => {
@@ -34,10 +38,13 @@ export default function Footer() {
             </p>
 
             <div className="developer-cards">
-              {/* Himashri */}
+              {/* Himasri */}
               <div className="developer-card">
                 <div className="developer-avatar">
-                  <span>👩🏻‍💻</span>
+                  <img
+                    src={HimasriImage}
+                    alt="Himasri Pitani"
+                  />
                 </div>
 
                 <div className="developer-info">
@@ -45,14 +52,16 @@ export default function Footer() {
 
                   <p>Backend and AI Developer</p>
 
-                  <span>NLP - LLMs - RAG - Python - FastAPI</span>
+                  <span>
+                    NLP - LLMs - RAG - Python - FastAPI
+                  </span>
 
                   <div className="developer-socials">
                     <a
                       href="https://github.com/HimasriPithani"
                       target="_blank"
                       rel="noreferrer"
-                      aria-label="Himashri GitHub"
+                      aria-label="Himasri GitHub"
                     >
                       <FaGithub size={15} />
                     </a>
@@ -61,14 +70,14 @@ export default function Footer() {
                       href="https://www.linkedin.com/in/himasripithani/"
                       target="_blank"
                       rel="noreferrer"
-                      aria-label="Himashri LinkedIn"
+                      aria-label="Himasri LinkedIn"
                     >
                       <FaLinkedin size={15} />
                     </a>
 
                     <a
                       href="mailto:himasri17.p@gmail.com"
-                      aria-label="Email Himashri"
+                      aria-label="Email Himasri"
                     >
                       <Mail size={15} />
                     </a>
@@ -79,7 +88,10 @@ export default function Footer() {
               {/* Sashank */}
               <div className="developer-card">
                 <div className="developer-avatar">
-                  <span>👨🏻‍💻</span>
+                  <img
+                    src={SashankImage}
+                    alt="Sashank Tatavolu"
+                  />
                 </div>
 
                 <div className="developer-info">
@@ -87,7 +99,9 @@ export default function Footer() {
 
                   <p>Frontend and UI/UX Developer</p>
 
-                  <span>React - UI/UX - Web Development</span>
+                  <span>
+                    React - UI/UX - Web Development
+                  </span>
 
                   <div className="developer-socials">
                     <a
@@ -142,7 +156,11 @@ export default function Footer() {
           </p>
 
           <div className="footer-bottom-links">
-            <a href="https://github.com" target="_blank" rel="noreferrer">
+            <a
+              href="https://github.com"
+              target="_blank"
+              rel="noreferrer"
+            >
               GitHub
             </a>
 
