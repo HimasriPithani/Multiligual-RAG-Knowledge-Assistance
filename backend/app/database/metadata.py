@@ -32,11 +32,19 @@ def get_collection():
     return db["documents"]
 
 
-async def create_document(document_id: str, filename: str,user_id: str,) -> DocumentMetadata:
+async def create_document(
+    document_id: str,
+    filename: str,
+    user_id: str,
+    file_size: Optional[int] = None,
+    file_type: Optional[str] = None,
+) -> DocumentMetadata:
     doc = DocumentMetadata(
         document_id=document_id,
         user_id=user_id,
         filename=filename,
+        file_size=file_size,
+        file_type=file_type,
         uploaded_at=datetime.now(timezone.utc),
         status="processing",
         chunk_count=0,
@@ -44,7 +52,6 @@ async def create_document(document_id: str, filename: str,user_id: str,) -> Docu
     collection = get_collection()
     await collection.insert_one(doc.model_dump())
     return doc
-
 
 async def mark_ready(document_id: str, language: str, chunk_count: int) -> None:
     collection = get_collection()

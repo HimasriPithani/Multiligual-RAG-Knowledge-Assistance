@@ -14,7 +14,14 @@ from fastapi import APIRouter, Depends, HTTPException
 
 from app.core.security import get_current_user_id
 from app.database import chat_sessions
-from app.models.schemas import ChatRequest, ChatResponse, SourceReference
+from app.models.schemas import (
+    ChatRequest,
+    ChatResponse,
+    SourceReference,
+    ChatSessionListResponse,
+    ChatSessionResponse,
+    MessageResponse,
+)
 from app.multilingual.language_detection import detect_language
 from app.rag.generator import LLMServiceError, generate_answer
 from app.rag.prompt import build_prompt
@@ -107,4 +114,46 @@ async def chat(
         sources=sources,
         grounded=True,
         session_id=session_id,
-    )   
+    )
+
+
+@router.get("/chat/sessions", response_model=ChatSessionListResponse)
+async def get_sessions(
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Returns every chat session belonging to the current user, newest first."""
+    sessions = await chat_sessions.list_sessions(user_id=current_user_id)
+    return ChatSessionListResponse(sessions=sessions, total=len(sessions))
+
+
+@router.get("/chat/sessions/{session_id}", response_model=ChatSessionResponse)
+async def get_session_detail(
+    session_id: str,
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Returns one session's metadata plus its full message history."""
+    result = await chat_sessions.get_session(
+        session_id=session_id, user_id=current_user_id
+    )
+
+    if result is None:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    session, messages = result
+    return ChatSessionResponse(session=session, messages=messages)
+
+
+@router.delete("/chat/sessions/{session_id}", response_model=MessageResponse)
+async def delete_session_route(
+    session_id: str,
+    current_user_id: str = Depends(get_current_user_id),
+):
+    """Deletes a chat session belonging to the current user."""
+    deleted = await chat_sessions.delete_session(
+        session_id=session_id, user_id=current_user_id
+    )
+
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Chat session not found.")
+
+    return MessageResponse(message="Chat session deleted successfully")

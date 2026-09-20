@@ -43,6 +43,7 @@ app.include_router(chat.router)
 app.include_router(auth_router)
 
 
+
 @app.get("/")
 async def root():
     return {

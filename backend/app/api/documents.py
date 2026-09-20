@@ -51,6 +51,8 @@ async def upload_document(file: UploadFile = File(...),current_user_id: str = De
         document_id=document_id,
         filename=file.filename,
         user_id=current_user_id,
+        file_size=len(contents),
+        file_type=ext.lstrip("."),
     )
 
     try:

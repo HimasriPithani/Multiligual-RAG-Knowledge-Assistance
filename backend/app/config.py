@@ -36,7 +36,7 @@ class Settings(BaseSettings):
     chunk_size_words: int = 350
     chunk_overlap_words: int = 60
     top_k: int = 5
-    similarity_threshold: float = 0.35
+    similarity_threshold: float = 0.20
 
     # Uploads
     upload_dir: str = "./data/uploads"

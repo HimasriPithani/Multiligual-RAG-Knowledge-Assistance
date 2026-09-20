@@ -30,8 +30,7 @@ export default function Footer() {
             <h3>Meet the Developers</h3>
 
             <p className="footer-developers-subtitle">
-              Built with passion by final year students | Kakinada Institute
-              of Engineering and Technology.
+              Built with passion
             </p>
 
             <div className="developer-cards">
@@ -42,7 +41,7 @@ export default function Footer() {
                 </div>
 
                 <div className="developer-info">
-                  <h4>Himashri Pitani</h4>
+                  <h4>Himasri Pitani</h4>
 
                   <p>Backend and AI Developer</p>
 

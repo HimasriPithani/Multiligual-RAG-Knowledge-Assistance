@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import {
   ChevronRight,
-  ChevronDown,
   Eye,
   EyeOff,
   FileText,
@@ -20,6 +19,7 @@ import {
 } from "lucide-react";
 
 import "../../styles/Dashboard.css";
+import CustomSelect from "../../components/dashboard/CustomSelect";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -34,6 +34,11 @@ const LANGUAGES = [
   { value: "te", label: "తెలుగు" },
   { value: "ta", label: "தமிழ்" },
   { value: "bn", label: "বাংলা" },
+];
+
+const SIDEBAR_LANGUAGES = [
+  { value: "auto", label: "Auto-detect" },
+  ...LANGUAGES.filter((item) => item.value !== "auto"),
 ];
 
 const EXAMPLE_QUESTIONS = [
@@ -771,24 +776,13 @@ export default function Dashboard() {
         <div className="chat-sidebar-card">
           <p className="chat-sidebar-card-title">Languages</p>
 
-          <div className="chat-select">
-            <Globe size={16} />
-
-            <select
-              value={language}
-              onChange={(event) => setLanguage(event.target.value)}
-              aria-label="Answer language"
-            >
-              <option value="auto">Auto-detect</option>
-              {LANGUAGES.filter((item) => item.value !== "auto").map((item) => (
-                <option key={item.value} value={item.value}>
-                  {item.label}
-                </option>
-              ))}
-            </select>
-
-            <ChevronDown size={16} className="chat-select-chevron" />
-          </div>
+          <CustomSelect
+            value={language}
+            onChange={setLanguage}
+            ariaLabel="Answer language"
+            icon={<Globe size={16} />}
+            options={SIDEBAR_LANGUAGES}
+          />
         </div>
 
         <div className="chat-sidebar-card">
@@ -1326,23 +1320,14 @@ export default function Dashboard() {
               </button>
 
               <div className="chat-composer-right">
-                <div className="chat-select compact">
-                  <Globe size={16} />
-
-                  <select
-                    value={language}
-                    onChange={(event) => setLanguage(event.target.value)}
-                    aria-label="Answer language"
-                  >
-                    {LANGUAGES.map((item) => (
-                      <option key={item.value} value={item.value}>
-                        {item.label}
-                      </option>
-                    ))}
-                  </select>
-
-                  <ChevronDown size={16} className="chat-select-chevron" />
-                </div>
+                <CustomSelect
+                  value={language}
+                  onChange={setLanguage}
+                  ariaLabel="Answer language"
+                  icon={<Globe size={16} />}
+                  compact
+                  options={LANGUAGES}
+                />
 
                 <button
                   type="submit"
